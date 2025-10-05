@@ -1,9 +1,11 @@
+"""
+Comparision between Hugging Face's model inference time with and without in-built KV cache.
+"""
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from mini_vllm.utils.timer import Timer
-# -------------------------------
+
 # Config
-# -------------------------------
 MODEL = "sshleifer/tiny-gpt2"
 PROMPT = "The quick brown fox jumps over the lazy dog."
 MAX_NEW_TOKENS = 64
@@ -29,6 +31,11 @@ def argmax_next(logits):
 
 
 def run_no_cache():
+    """Baseline: No KV cache"""
+    print("\n" + "="*60)
+    print("BASELINE: No KV Cache")
+    print("="*60)
+
     t = Timer()
     model, tok = load_model_and_tokenizer(t)
     input_ids = tokenize(PROMPT, tok, t)
@@ -47,10 +54,16 @@ def run_no_cache():
                 generated = torch.cat([generated, argmax_next(out.logits)], dim=1)
 
     print(t.report())
-    print("Generated length:", generated.shape[1])
+
+    return t.get_span("decode(no-cache loop)")
 
 
 def run_with_cache():
+    """With KV cache"""
+    print("\n" + "="*60)
+    print("WITH KV CACHE")
+    print("="*60)
+
     t = Timer()
     model, tok = load_model_and_tokenizer(t)
     input_ids = tokenize(PROMPT, tok, t)
@@ -71,9 +84,18 @@ def run_with_cache():
                 tokens += 1
 
     print(t.report())
-    print("New tokens:", tokens)
+    # print(f"New tokens: {tokens}")
+
+    return t.get_span("decode(cached)")
 
 
 if __name__ == "__main__":
-    run_no_cache()
-    run_with_cache()
+    no_cache_time = run_no_cache()
+    cache_time = run_with_cache()
+
+    print("\n" + "="*60)
+    print("SPEEDUP ANALYSIS")
+    print("="*60)
+    print(f"No cache decode:  {no_cache_time:8.2f} ms")
+    print(f"With cache decode: {cache_time:8.2f} ms")
+    print(f"Speedup:          {no_cache_time/cache_time:8.1f}×")

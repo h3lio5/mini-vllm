@@ -1,12 +1,10 @@
+"""Performance timing utilities."""
 import contextlib
 import time
 from dataclasses import dataclass
 from typing import List
 
 
-# -------------------------------
-# Timing utilities
-# -------------------------------
 @dataclass
 class Stat:
     name: str
@@ -24,10 +22,20 @@ class Timer:
             yield
         finally:
             t1 = time.perf_counter()
-            self.spans.append(Stat(name, (t1 - t0) * 1_000))
+            self.spans.append(Stat(name, (t1 - t0) * 1000))
 
     def report(self) -> str:
-        total = sum(s.ms for s in self.spans)
+        total = sum(stat.ms for stat in self.spans)
         lines = [f"Total: {total:.2f} ms"]
-        lines += [f" {s.name:<24} {s.ms:8.2f} ms" for s in self.spans]
+        for s in self.spans:
+            lines.append(f" {s.name:<24} {s.ms:8.2f} ms")
         return "\n".join(lines)
+
+    def reset(self):
+        self.spans.clear()
+
+    def get_span(self, name: str) -> float:
+        for stat in self.spans:
+            if stat.name == name:
+                return stat.ms
+        return 0.0
