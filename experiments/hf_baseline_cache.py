@@ -41,21 +41,30 @@ def run_no_cache():
     input_ids = tokenize(PROMPT, tok, t)
 
     model.config.use_cache = False
+    tokens_generated = 0
 
     with torch.no_grad():
         with t.span("prefill(full forward)"):
             out = model(input_ids=input_ids)
             next_id = argmax_next(out.logits)
             generated = torch.cat([input_ids, next_id], dim=1)
+            tokens_generated = 1
 
         with t.span("decode(no-cache loop)"):
             for _ in range(1, MAX_NEW_TOKENS):
                 out = model(input_ids=generated)
                 generated = torch.cat([generated, argmax_next(out.logits)], dim=1)
+                tokens_generated += 1
 
     print(t.report())
 
-    return t.get_span("decode(no-cache loop)")
+    # Calculate throughput
+    decode_time_s = [s for s in t.spans if s.name == "decode(no-cache loop)"][0].ms / 1000
+    throughput = tokens_generated / decode_time_s
+    print(f"Tokens generated: {tokens_generated}")
+    print(f"Throughput: {throughput:.1f} tok/s")
+
+    return decode_time_s * 1000, throughput  # Return in ms
 
 
 def run_with_cache():
@@ -84,18 +93,23 @@ def run_with_cache():
                 tokens += 1
 
     print(t.report())
-    # print(f"New tokens: {tokens}")
 
-    return t.get_span("decode(cached)")
+    # Calculate throughput
+    decode_time_s = [s for s in t.spans if s.name == "decode(cached)"][0].ms / 1000
+    throughput = tokens / decode_time_s
+    print(f"Tokens generated: {tokens}")
+    print(f"Throughput: {throughput:.1f} tok/s")
+
+    return decode_time_s * 1000, throughput  # Return in ms
 
 
 if __name__ == "__main__":
-    no_cache_time = run_no_cache()
-    cache_time = run_with_cache()
+    no_cache_time, no_cache_throughput = run_no_cache()
+    cache_time, cache_throughput = run_with_cache()
 
     print("\n" + "="*60)
     print("SPEEDUP ANALYSIS")
     print("="*60)
-    print(f"No cache decode:  {no_cache_time:8.2f} ms")
-    print(f"With cache decode: {cache_time:8.2f} ms")
+    print(f"No cache decode:  {no_cache_time:8.2f} ms | {no_cache_throughput:.1f} tok/s")
+    print(f"With cache decode: {cache_time:8.2f} ms | {cache_throughput:.1f} tok/s")
     print(f"Speedup:          {no_cache_time/cache_time:8.1f}×")
