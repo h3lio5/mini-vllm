@@ -16,7 +16,7 @@ DTYPE = torch.float16 if DEVICE == "cuda" else None
 def load_model_and_tokenizer(timer: Timer):
     with timer.span("load_model"):
         tok = AutoTokenizer.from_pretrained(MODEL)
-        model = AutoModelForCausalLM.from_pretrained(MODEL, torch_dtype=DTYPE)
+        model = AutoModelForCausalLM.from_pretrained(MODEL, dtype=DTYPE)
         model.to(DEVICE).eval()
     return model, tok
 
